@@ -1,0 +1,15 @@
+ccxt==4.5.1
+joblib==1.5.1
+numpy==1.23.5
+pandas==2.3.1
+prophet==1.1.7
+PyQt5==5.15.11
+PyQt5_sip==12.17.0
+pyqtgraph==0.13.7
+python-dotenv==1.1.1
+python_binance==1.0.29
+Requests==2.32.5
+scikit_learn==1.7.1
+statsmodels==0.14.5
+tensorflow==2.12.0
+tensorflow_intel==2.12.0
