@@ -63,6 +63,10 @@ except Exception as e:
 
 # ====================================================================
 # [변경 사항] - 골든 크로스 및 데드 크로스 지표 추가
+#
+# MA25와 MA99를 계산한 후, 이전 캔들 대비 현재 캔들의 MA25와 MA99의
+# 교차 여부를 판별하여 `golden_cross`와 `dead_cross` 열을 추가합니다.
+# 이 열은 부울(True/False) 값을 가집니다.
 # ====================================================================
 def calculate_all_indicators(df):
     df['close'] = df['close'].interpolate(method='linear')
@@ -297,8 +301,25 @@ class TradingBot:
 
 
     # ====================================================================
-    # [변경 사항] - 전략 로직에 골든/데드 크로스 신호 추가
+    # [추가 사항] - 이동평균선 아래 유지 후 상승 추세 매수 신호 확인
+    #
+    # 1. 과거 N일(days_below_ma) 동안 주가가 이동평균선(MA25) 아래에 있었는지 확인.
+    # 2. 현재 주가가 이동평균선(MA25) 위로 올라왔는지 확인.
+    # 3. 두 조건이 모두 충족되면 매수 신호를 반환.
     # ====================================================================
+    def check_ma_below_and_reversal(self, df, days_below_ma=3):
+        if len(df) < days_below_ma + 1:
+            return False
+        
+        # 최근 days_below_ma일(현재 캔들 제외) 동안 주가가 MA25 아래에 있었는지 확인
+        is_below = (df['close'].iloc[-(days_below_ma + 1):-1] < df['ma25'].iloc[-(days_below_ma + 1):-1]).all()
+        
+        # 그리고 현재 주가가 MA25 위로 올라왔는지 확인
+        is_reversal = df['close'].iloc[-1] > df['ma25'].iloc[-1]
+        
+        return is_below and is_reversal
+
+
     def run_trading_strategy(self):
         if not self.model_packages:
             self.log_message("⚠️ 모델이 로드되지 않아 전략을 실행할 수 없습니다.")
@@ -307,6 +328,22 @@ class TradingBot:
         predicted_prices = []
         current_price = self.get_latest_price()
         if current_price is None:
+            return
+
+        # 가장 긴 타임프레임(1d)을 기준으로 지표를 계산하여 전략에 활용
+        try:
+            days_to_load = 365 # 1년치 데이터 로드
+            df_raw = load_data(self.symbol, '1d', days_to_load, self.DATA_DIR)
+            if df_raw.empty or len(df_raw) < 100:
+                self.log_message(f"❌ 1d 데이터 로딩 실패 또는 부족. 전략 실행 불가.")
+                return
+            df_with_indicators = calculate_all_indicators(df_raw.copy())
+            latest_indicators = df_with_indicators.iloc[-1]
+            golden_cross_signal = latest_indicators['golden_cross']
+            dead_cross_signal = latest_indicators['dead_cross']
+            ma_reversal_signal = self.check_ma_below_and_reversal(df_with_indicators)
+        except Exception as e:
+            self.log_message(f"❌ 지표 계산 중 오류 발생: {e}. 전략 실행 불가.")
             return
 
         for tf, model_package in self.model_packages.items():
@@ -346,19 +383,17 @@ class TradingBot:
         final_predicted_price = np.mean(predicted_prices)
         price_diff_ratio = (final_predicted_price - current_price) / current_price * 100
 
-        # 최신 지표 신호 확인
-        latest_indicators = df_with_indicators.iloc[-1]
-        golden_cross_signal = latest_indicators['golden_cross']
-        dead_cross_signal = latest_indicators['dead_cross']
-        
         self.log_message(f"📝 종합 예측 정보: 현재 가격 {current_price:.2f}, 최종 예측 가격 {final_predicted_price:.2f} (변동률: {price_diff_ratio:.2f}%)")
         
         if self.position is None:
-            # 매수 신호: 모델 예측(강력) OR 골든 크로스 발생 시
-            if (price_diff_ratio > self.buy_threshold_strong) or golden_cross_signal:
+            # 매수 신호: 모델 예측(강력) OR 골든 크로스 OR 이동평균선 리버설 신호 시
+            if (price_diff_ratio > self.buy_threshold_strong) or golden_cross_signal or ma_reversal_signal:
                 if golden_cross_signal:
                     self.log_message("⭐ 골든 크로스 신호 포착!")
                     send_telegram_channel_message(self.symbol, "골든 크로스 신호 포착! 매수 고려", level="🚨🚨")
+                elif ma_reversal_signal:
+                    self.log_message("⭐ 이동평균선 아래 유지 후 상승 추세 신호 포착!")
+                    send_telegram_channel_message(self.symbol, "이동평균선 아래 유지 후 상승 전환 신호 포착! 매수 고려", level="🚨🚨")
                 else:
                     self.log_message("⭐ 적극 매수 신호 포착!")
                     send_telegram_channel_message(self.symbol, f"강력 매수 신호 포착! 예측 변동률: {price_diff_ratio:.2f}%", level="🚨🚨🚨")
@@ -443,7 +478,7 @@ class TradingBotApp:
         
         ttk.Label(config_frame, text="코인 선택:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
         self.symbol_combobox = ttk.Combobox(config_frame, textvariable=self.symbol, 
-                                            values=['BTC', 'ETH', 'SOL', 'XRP'], state='readonly', width=10)
+                                             values=['BTC', 'ETH', 'SOL', 'XRP'], state='readonly', width=10)
         self.symbol_combobox.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
         self.symbol_combobox.bind("<<ComboboxSelected>>", self.reinitialize_bot)
 

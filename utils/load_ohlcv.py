@@ -74,19 +74,19 @@ def update_data(symbol, interval, days, data_dir=None):
 if __name__ == "__main__":
     # 예: BTC, 1시간 간격, 최근 365일
     coin_name = 'BTC'
-    update_data(symbol=coin_name, interval='15m', days=180)
+    update_data(symbol=coin_name, interval='15m', days=365)
     update_data(symbol=coin_name, interval='1h', days=365)
     update_data(symbol=coin_name, interval='4h', days=365)
-    update_data(symbol=coin_name, interval='1d', days=365*2)
+    update_data(symbol=coin_name, interval='1d', days=365)
 
     coin_name = 'ETH'
-    update_data(symbol=coin_name, interval='15m', days=180)
+    update_data(symbol=coin_name, interval='15m', days=365)
     update_data(symbol=coin_name, interval='1h', days=365)
     update_data(symbol=coin_name, interval='4h', days=365)
-    update_data(symbol=coin_name, interval='1d', days=365*2)
+    update_data(symbol=coin_name, interval='1d', days=365)
 
     coin_name = 'XRP'
-    update_data(symbol=coin_name, interval='15m', days=180)
+    update_data(symbol=coin_name, interval='15m', days=365)
     update_data(symbol=coin_name, interval='1h', days=365)
     update_data(symbol=coin_name, interval='4h', days=365)
-    update_data(symbol=coin_name, interval='1d', days=365*2)
+    update_data(symbol=coin_name, interval='1d', days=365)
